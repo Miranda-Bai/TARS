@@ -1,0 +1,8 @@
+env/
+docs/
+tars/db/
+.git/
+.sandbox/
+.template_env
+__pycache__/
+

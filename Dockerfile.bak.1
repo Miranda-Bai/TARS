@@ -1,0 +1,86 @@
+FROM kalilinux/kali-rolling
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# install dependencies
+RUN apt-get update && apt-get upgrade -y
+RUN apt-get install -y curl dnsutils wget
+RUN apt-get install -y nmap sqlmap autopsy john
+RUN apt-get install -y vim python3-pip git python-is-python3
+
+# install zaproxy stuff
+RUN apt-get install -y zaproxy docker.io
+#RUN pip install zaproxy
+
+RUN apt-get install -y zaproxy docker.io python3-venv
+
+# Create and activate a virtual environment
+RUN python3 -m venv /opt/zap-venv && \
+    /opt/zap-venv/bin/pip install zaproxy
+
+# install Google Chrome
+WORKDIR /home/
+# Install dependencies
+RUN apt-get update && apt-get install -y wget gnupg2 software-properties-common
+
+# Manually download and add Google Chrome's key (modern alternative to apt-key)
+RUN mkdir -p /etc/apt/keyrings && \
+    wget -q -O - https://dl.google.com/linux/linux_signing_key.pub > /etc/apt/keyrings/google-chrome.key && \
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.key] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
+
+# Install Google Chrome
+RUN apt-get update && apt-get install -y google-chrome-stable
+WORKDIR /root/
+
+# install RustScan
+RUN wget https://github.com/RustScan/RustScan/releases/download/2.2.2/rustscan_2.2.2_amd64.deb
+RUN dpkg -i rustscan_2.2.2_amd64.deb
+RUN rm rustscan_2.2.2_amd64.deb
+RUN apt-get install -y iputils-ping
+
+# segmented run layers so the compiler does not struggle
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# 2025 Jun, install Nettacker
+# RUN mkdir ~/nettacker
+# RUN git clone https://github.com/OWASP/Nettacker.git ~/nettacker
+# RUN python3 -m venv ~/nettacker
+# RUN source ~/nettacker/bin/activate 
+# RUN pip3 install ~/nettacker 
+# RUN chmod +x ~/nettacker/nettacker.py
+
+# Install Nettacker properly with virtualenv
+RUN git clone https://github.com/OWASP/Nettacker.git /opt/nettacker && \
+    python3 -m venv /opt/nettacker/venv && \
+    /opt/nettacker/venv/bin/pip install --upgrade pip && \
+    /opt/nettacker/venv/bin/pip install -e /opt/nettacker && \
+    chmod +x /opt/nettacker/nettacker.py && \
+    ln -s /opt/nettacker/nettacker.py /usr/local/bin/nettacker
+
+# install project's depends
+COPY . /root/
+RUN pip install --default-timeout=1000 --no-cache-dir --use-deprecated=legacy-resolver -r /root/requirements.txt
+
+WORKDIR /root/tars/
+
+# COPY . /root/
+# # Install project dependencies in a virtualenv
+# RUN python3 -m venv /opt/app/venv && \
+#     /opt/app/venv/bin/pip install --upgrade pip && \
+#     sed -i 's/==/<=/g' /root/requirements.txt && \
+#     /opt/app/venv/bin/pip install --default-timeout=1000 --no-cache-dir --use-deprecated=legacy-resolver -r /root/requirements.txt
+
+# WORKDIR /root/tars/
+
+# embedchain~=0.1.114
+# No matching distribution found for embedchain>=0.1.114 (from crewai-tools>=0.1.6->-r /root/requirements.txt (line 3))
+
+# Clean up
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# NOTE: For testing, comment out ENTRYPOINT, uncomment CMD, then rebuild and run the image
+
+EXPOSE 8501
+CMD ["bash"]
+# ENTRYPOINT ["/bin/bash", "-c", "source /root/.env && exec streamlit run /root/frontend/main.py --server.port=8501 --server.address=0.0.0.0"]
+
