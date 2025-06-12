@@ -1,0 +1,105 @@
+# Use Kali Linux as base
+FROM kalilinux/kali-rolling
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHON_VERSION=3.11.11 \
+    PATH="/usr/local/bin:$PATH"
+
+# Install build dependencies and essential tools
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates wget curl git build-essential \
+    zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev \
+    libssl-dev libreadline-dev libffi-dev libsqlite3-dev libbz2-dev \
+    liblzma-dev tk-dev && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Update CA certificates and download Python
+RUN update-ca-certificates && \
+    cd /usr/src && \
+    wget --no-check-certificate https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz && \
+    tar xzf Python-${PYTHON_VERSION}.tgz && \
+    cd Python-${PYTHON_VERSION} && \
+    ./configure --enable-optimizations --enable-shared --with-system-ffi --with-ensurepip=install && \
+    make -j $(nproc) && \
+    make altinstall && \
+    ldconfig && \
+    cd .. && \
+    rm -rf Python-${PYTHON_VERSION} Python-${PYTHON_VERSION}.tgz
+
+# Set Python 3.11 as default
+RUN update-alternatives --install /usr/bin/python python /usr/local/bin/python3.11 1 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/local/bin/python3.11 1 && \
+    update-alternatives --install /usr/bin/pip pip /usr/local/bin/pip3.11 1 && \
+    update-alternatives --install /usr/bin/pip3 pip3 /usr/local/bin/pip3.11 1
+
+# Verify Python installation
+RUN python --version && pip --version
+
+# Install Kali tools (now using Python 3.11.11)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nmap sqlmap john zaproxy docker.io \
+    wget gnupg2 software-properties-common && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install Google Chrome
+RUN mkdir -p /etc/apt/keyrings && \
+    wget -q -O - https://dl.google.com/linux/linux_signing_key.pub > /etc/apt/keyrings/google-chrome.key && \
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.key] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
+    apt-get update && apt-get install -y google-chrome-stable && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install RustScan
+RUN wget https://github.com/RustScan/RustScan/releases/download/2.2.2/rustscan_2.2.2_amd64.deb && \
+    dpkg -i rustscan_2.2.2_amd64.deb && \
+    rm rustscan_2.2.2_amd64.deb
+
+# Create virtual environments
+RUN python -m venv /opt/venv && \
+    /opt/venv/bin/pip install --upgrade pip
+
+# Fix crypto dependencies before installing crewai
+# RUN /opt/venv/bin/pip uninstall -y cryptography 
+
+# RUN /opt/venv/bin/pip install crewai langchain-core langchain
+
+# Install Nettacker in its own venv
+RUN git clone https://github.com/OWASP/Nettacker.git /opt/nettacker && \
+    python -m venv /opt/nettacker/venv && \
+    /opt/nettacker/venv/bin/pip install --upgrade pip && \
+    /opt/nettacker/venv/bin/pip install -e /opt/nettacker && \
+    chmod +x /opt/nettacker/nettacker.py && \
+    ln -s /opt/nettacker/nettacker.py /usr/local/bin/nettacker
+
+# Install ZAP Proxy in its own venv
+RUN python -m venv /opt/zap-venv && \
+    /opt/zap-venv/bin/pip install --upgrade pip && \
+    /opt/zap-venv/bin/pip install zaproxy
+
+# Copy application code
+COPY . /app
+WORKDIR /app
+
+# Install application dependencies
+RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+
+RUN /opt/venv/bin/pip install --upgrade pydantic langchain-core
+
+# Add health check
+HEALTHCHECK --interval=30s --timeout=3s \
+    CMD python -c "from healthcheck import verify_agents; verify_agents()"
+
+# Set up environment activation
+RUN echo 'source /opt/venv/bin/activate' >> ~/.bashrc && \
+    echo 'source /opt/zap-venv/bin/activate' >> ~/.bashrc && \
+    echo 'source /opt/nettacker/venv/bin/activate' >> ~/.bashrc
+
+# Ensure proper Python environment
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONPATH="/opt/venv/lib/python3.11/site-packages"
+
+EXPOSE 8501
+# CMD ["bash"]
+# CMD ["/opt/venv/bin/python", "/app/frontend/main.py"]
+ENTRYPOINT ["/bin/bash", "-c", "source /app/.env && exec streamlit run /app/frontend/main.py --server.port=8501 --server.address=0.0.0.0"]

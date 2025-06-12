@@ -6,7 +6,7 @@ from crewai_tools import (
 )
 
 from langchain_community.tools import DuckDuckGoSearchRun
-from langchain_openai import ChatOpenAI  # Fixed import
+from langchain_openai import ChatOpenAI
 from subprocess import Popen, PIPE
 import config
 import sys
@@ -14,16 +14,6 @@ import os
 
 sys.path.append(os.path.join(str("/".join(__file__.split("/")[:-1])), "tools"))
 from tools import nettacker, helpers, scrapper, search, rustscan, zaproxy
-
-# Configure OpenRouter LLM using ChatOpenAI (OpenAI-compatible)
-openrouter_llm = ChatOpenAI(
-    model=config.best_openrouter_model,  # e.g., "deepseek/deepseek-r1"
-    openai_api_key=config.openrouter_api_key,  # Your OpenRouter API key
-    openai_api_base=config.openrouter_api_base,  # OpenRouter API base
-    temperature=0.7,
-    max_tokens=2000,
-    # Optional headers can be added via default_headers if needed
-)
 
 # NOTE: (5-3-2024) I did not give this agent access to a full scan tool(s)
 WebAppPentester = Agent(
@@ -34,7 +24,7 @@ As a seasoned web application penetration tester, you excel at simulating cyber 
 """,
     verbose=True,
     allow_delegation=False,
-    llm=openrouter_llm,
+    llm=ChatOpenAI(model=config.best_gpt_model),
     tools=[
         rustscan.rustscan,
         rustscan.rustscan_docs,
@@ -44,6 +34,7 @@ As a seasoned web application penetration tester, you excel at simulating cyber 
     ],
 )
 
+
 NetworkPentester = Agent(
     role="Network Penetration Tester",
     goal="Execute advanced penetration tests to uncover and report network vulnerabilities using sophisticated techniques and tools.",
@@ -52,7 +43,7 @@ As an expert network penetration tester, you specialize in simulating cyber atta
 """,
     verbose=True,
     allow_delegation=False,
-    llm=openrouter_llm,
+    llm=ChatOpenAI(model=config.best_gpt_model),
     tools=[
         nettacker.get_nettacker_docs,
         nettacker.nettacker,
@@ -67,10 +58,10 @@ As an expert network penetration tester, you specialize in simulating cyber atta
 ResearcherAgent = Agent(
     role="Cybersecurity Researcher",
     goal="Provide up-to-date solutions for specific cybersecurity issues/vulnerabilities",
-    backstory="An expert analyst with a keen eye for cybersecurity and finding ways/sources to fix any cybersecurity issue/vulnerability",
+    backstory="An expert analyst with a keep eye for cybersecurity and finding ways/sources to fix any cybersecurity issue/vulnerability",
     verbose=True,
     allow_delegation=False,
-    llm=openrouter_llm,
+    llm=ChatOpenAI(model=config.best_gpt_model),
     tools=[
         scrapper.crawl_website_urls,
         scrapper.scrape_website,
@@ -82,11 +73,11 @@ ResearcherAgent = Agent(
 
 WriterAgent = Agent(
     role="Report Writer",
-    goal="Given some content/research, craft a nice, concise, informative, report detailing the findings in the research. The report must be in Markdown and, if need be, each source should be cited in a bibliography",
+    goal="Given some content/research, craft a nice, concise, informative, report detailing the fidnings in the research. The report most be in MarkDown and, if need be, each source should be cited in a biography",
     backstory="A skilled Report Writer with a passion for writing the best Reports given the content/research presented to them",
     verbose=True,
     allow_delegation=False,
-    llm=openrouter_llm,
+    llm=ChatOpenAI(model=config.best_gpt_model),
     tools=[helpers.current_utc_timestamp],
 )
 
@@ -101,6 +92,6 @@ MakeMarkDownAgent = Agent(
     ),
     verbose=True,
     allow_delegation=False,
-    llm=openrouter_llm,
+    llm=ChatOpenAI(model=config.best_gpt_model),
     tools=[],
 )

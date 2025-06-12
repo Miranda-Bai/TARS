@@ -217,7 +217,7 @@ def trim_end(text, model_name, max_size, p, rs=10):
 
 @tool("ScrapeWebsite")
 def scrape_website(
-    url: str, token_limit: int = 120_000, model: str = "gpt-4-turbo"
+    url: str, token_limit: int = 120_000, model: str = "deepseek/deepseek-r1"
 ) -> str:
     """
     Scrape content from the specified URL, remove HTML tags, and limit the output based on token count.
